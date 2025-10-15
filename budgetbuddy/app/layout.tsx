@@ -3,6 +3,10 @@ import { Inter, Raleway } from "next/font/google";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "sonner";
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -17,7 +21,8 @@ const raleway = Raleway({
 
 export const metadata: Metadata = {
   title: "BojetBuddy",
-  description: "A smart expense tracker for users to manage their finances",
+  description:
+    "A smart expense tracker for users to manage their finances",
 };
 
 export default function RootLayout({
@@ -27,14 +32,19 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider>
-      <html
-        lang="en"
-        className={`${inter.variable} ${raleway.variable}`}
-      >
-        <body className={`font-sans antialiased bg-accent`}>
-          {children}
-        </body>
-      </html>
+      <TooltipProvider>
+        <html
+          lang="en"
+          className={`${inter.variable} ${raleway.variable}`}
+          suppressHydrationWarning
+        >
+          <body className={`font-sans antialiased bg-accent`}>
+            {children}
+          </body>
+          <Toaster richColors />
+          <Sonner />
+        </html>
+      </TooltipProvider>
     </ClerkProvider>
   );
 }
