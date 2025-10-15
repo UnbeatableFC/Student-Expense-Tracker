@@ -1,6 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useUser } from "@clerk/nextjs";
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+} from "firebase/firestore";
 import {
   Card,
   CardContent,
@@ -27,71 +35,90 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Search, Filter, Trash2, Edit } from "lucide-react";
 import { format } from "date-fns";
+import { Expense } from "@/types/types";
+
+// type Expense = {
+//   id: string;
+//   name: string;
+//   amount: number;
+//   category: string;
+//   date: string; // stored as ISO string in Firestore
+//   description?: string;
+// };
 
 const ExpensesList = () => {
+  const { user } = useUser();
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [amountFilter, setAmountFilter] = useState("all");
-
-  // Mock data - will be replaced with real data from your database
-  const expenses = [
-    {
-      id: "1",
-      name: "Lunch at Campus Cafe",
-      amount: 12.5,
-      category: "Food & Dining",
-      date: new Date("2025-10-10"),
-      description: "Pizza and drink",
-    },
-    {
-      id: "2",
-      name: "Bus Pass",
-      amount: 45.0,
-      category: "Transportation",
-      date: new Date("2025-10-09"),
-      description: "Monthly pass",
-    },
-    {
-      id: "3",
-      name: "Movie Tickets",
-      amount: 20.0,
-      category: "Entertainment",
-      date: new Date("2025-10-08"),
-      description: "Weekend movie",
-    },
-    {
-      id: "4",
-      name: "Textbooks",
-      amount: 150.0,
-      category: "Education",
-      date: new Date("2025-10-07"),
-      description: "Math and Physics books",
-    },
-    {
-      id: "5",
-      name: "Coffee",
-      amount: 5.5,
-      category: "Food & Dining",
-      date: new Date("2025-10-06"),
-      description: "Morning coffee",
-    },
-  ];
+  const [loading, setLoading] = useState(true);
 
   const categories = [
-    "Food & Dining",
+    "Food",
     "Transportation",
     "Entertainment",
     "Education",
     "Shopping",
     "Health",
-    "Bills & Utilities",
+    "Utilities",
     "Other",
   ];
 
+  // 🔥 Fetch real-time expenses from Firestore
+  useEffect(() => {
+    if (!user) return;
+    try {
+       const q = query(
+      collection(db, "users", user.id, "expenses"),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const userExpenses = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Expense[];
+
+      setExpenses(userExpenses);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+    } catch (error) {
+      console.log(error)
+    } finally {
+      setLoading(false);
+    }
+
+   
+  }, [user]);
+
+  // 🎯 Filter logic
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((expense) => {
+      const matchesSearch =
+        expense.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        expense.category.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesCategory =
+        categoryFilter === "all" || expense.category === categoryFilter;
+
+      const matchesAmount =
+        amountFilter === "all" ||
+        (amountFilter === "low" && expense.amount < 20) ||
+        (amountFilter === "medium" &&
+          expense.amount >= 20 &&
+          expense.amount < 100) ||
+        (amountFilter === "high" && expense.amount >= 100);
+
+      return matchesSearch && matchesCategory && matchesAmount;
+    });
+  }, [expenses, searchTerm, categoryFilter, amountFilter]);
+
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
-      "Food & Dining":
-        "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300",
+      Food: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300",
       Transportation:
         "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300",
       Entertainment:
@@ -102,28 +129,18 @@ const ExpensesList = () => {
         "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
       Health:
         "bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300",
+      Utilities:
+        "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300",
     };
     return colors[category] || "bg-muted text-muted-foreground";
   };
 
-  const filteredExpenses = expenses.filter((expense) => {
-    const matchesSearch =
-      expense.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      expense.category
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
-    const matchesCategory =
-      categoryFilter === "all" || expense.category === categoryFilter;
-    const matchesAmount =
-      amountFilter === "all" ||
-      (amountFilter === "low" && expense.amount < 20) ||
-      (amountFilter === "medium" &&
-        expense.amount >= 20 &&
-        expense.amount < 100) ||
-      (amountFilter === "high" && expense.amount >= 100);
-
-    return matchesSearch && matchesCategory && matchesAmount;
-  });
+  if (!user)
+    return (
+      <div className="text-center py-10 text-muted-foreground">
+        Please log in to view your expenses.
+      </div>
+    );
 
   return (
     <div className="space-y-8">
@@ -183,33 +200,27 @@ const ExpensesList = () => {
 
           {/* Expenses Table */}
           <div className="rounded-xl border border-border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead>Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">
-                    Actions
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {filteredExpenses.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="text-center py-8"
-                    >
-                      <p className="text-muted-foreground font-sans">
-                        No expenses found
-                      </p>
-                    </TableCell>
+            {loading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Loading expenses...
+              </div>
+            ) : filteredExpenses.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No expenses found
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  filteredExpenses.map((expense) => (
+                </TableHeader>
+                <TableBody>
+                  {filteredExpenses.map((expense) => (
                     <TableRow
                       key={expense.id}
                       className="hover:bg-muted/30 transition-colors"
@@ -237,7 +248,9 @@ const ExpensesList = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="font-sans">
-                        {format(expense.date, "MMM dd, yyyy")}
+                        {expense.date
+                          ? format(new Date(expense.date), "MMM dd, yyyy")
+                          : "-"}
                       </TableCell>
                       <TableCell className="text-right font-medium font-sans">
                         ${expense.amount.toFixed(2)}
@@ -261,30 +274,31 @@ const ExpensesList = () => {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </div>
 
           {/* Summary */}
-          <div className="mt-6 flex flex-col md:flex-row justify-between items-center">
-            <p className="text-sm text-muted-foreground font-sans">
-              Showing {filteredExpenses.length} of {expenses.length}{" "}
-              expenses
-            </p>
-            <div className="text-right mt-3 md:mt-0">
+          {!loading && (
+            <div className="mt-6 flex flex-col md:flex-row justify-between items-center">
               <p className="text-sm text-muted-foreground font-sans">
-                Total
+                Showing {filteredExpenses.length} of {expenses.length} expenses
               </p>
-              <p className="text-2xl font-heading font-bold text-primary">
-                $
-                {filteredExpenses
-                  .reduce((sum, expense) => sum + expense.amount, 0)
-                  .toFixed(2)}
-              </p>
+              <div className="text-right mt-3 md:mt-0">
+                <p className="text-sm text-muted-foreground font-sans">
+                  Total
+                </p>
+                <p className="text-2xl font-heading font-bold text-primary">
+                  $
+                  {filteredExpenses
+                    .reduce((sum, expense) => sum + expense.amount, 0)
+                    .toFixed(2)}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

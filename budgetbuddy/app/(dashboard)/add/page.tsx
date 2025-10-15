@@ -27,11 +27,15 @@ import {
 } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
+import { useUser } from "@clerk/nextjs";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
-import { Expense } from "../../../types/types";
+
 
 const AddExpense = () => {
   const router = useRouter();
+    const { user } = useUser();
   const [date, setDate] = useState<Date>(new Date());
   const [formData, setFormData] = useState({
     name: "",
@@ -51,7 +55,7 @@ const AddExpense = () => {
     "Other",
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name || !formData.amount || !formData.category) {
@@ -64,14 +68,34 @@ const AddExpense = () => {
       return;
     }
 
-    toast.success("Expense added successfully!");
-    setFormData({
-      name: "",
-      amount: "",
-      category: "",
-      description: "",
-    });
-    router.push("/expenses");
+    if (!user) return alert("Please log in first");
+    if (!date) return alert("Please select a date");
+
+    try {
+      // Reference to the user's expenses collection
+      const expensesRef = collection(db, "users", user.id, "expenses");
+
+      await addDoc(expensesRef, {
+        name: formData.name,
+        amount: parseFloat(formData.amount),
+        category: formData.category,
+        description: formData.description || "",
+        date: date.toISOString(),
+        createdAt: serverTimestamp(),
+      });
+
+      toast.success("✅ Expense added successfully!");
+      setFormData({
+        name: "",
+        amount: "",
+        category: "",
+        description: "",
+      });
+      setDate(new Date())
+    } catch (error) {
+      console.error("❌ Error adding expense:", error);
+      toast.error("Failed to add expense. Please try again.");
+    }
   };
 
   return (
