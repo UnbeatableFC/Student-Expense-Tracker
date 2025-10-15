@@ -109,12 +109,13 @@
     @apply border-border outline-ring/50 transition-colors duration-300;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-base leading-relaxed text-foreground;
   }
-  button {
+  /* button {
     @apply bg-primary text-primary-foreground hover:bg-secondary transition-all;
-  }
+  } */
   .card {
     @apply bg-card text-card-foreground border border-border rounded-lg shadow-sm;
   }
+  
 }

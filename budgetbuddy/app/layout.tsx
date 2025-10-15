@@ -1,21 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Raleway } from "next/font/google";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const raleway = Raleway({
   subsets: ["latin"],
+  variable: "--font-raleway",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "BojetBuddy",
-  description: "Your Best Expense Tracker",
+  description: "A smart expense tracker for users to manage their finances",
 };
 
 export default function RootLayout({
@@ -25,10 +27,11 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider>
-      <html lang="en">
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        >
+      <html
+        lang="en"
+        className={`${inter.variable} ${raleway.variable}`}
+      >
+        <body className={`font-sans antialiased bg-accent`}>
           {children}
         </body>
       </html>
