@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -15,18 +16,79 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
+import { startOfWeek, addDays, format, isSameDay } from "date-fns";
+import { Timestamp } from "firebase/firestore";
+import { useTheme } from "next-themes";
 
-const ExpenseChart = () => {
-  // Mock data - replace with actual data later
-  const data = [
-    { name: "Mon", amount: 45 },
-    { name: "Tue", amount: 78 },
-    { name: "Wed", amount: 52 },
-    { name: "Thu", amount: 91 },
-    { name: "Fri", amount: 65 },
-    { name: "Sat", amount: 120 },
-    { name: "Sun", amount: 88 },
-  ];
+interface Expense {
+  amount: number;
+  date: string | number | Timestamp;
+}
+
+interface Props {
+  userId: string;
+}
+
+const ExpenseChart = ({ userId }: Props) => {
+  const { theme } = useTheme();
+  const [data, setData] = useState<
+    { name: string; amount: number }[]
+  >([]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const start = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday as start of week
+    const weekDays = Array.from({ length: 7 }, (_, i) =>
+      addDays(start, i)
+    );
+
+    const unsub = onSnapshot(
+      collection(db, "users", userId, "expenses"),
+      (snapshot) => {
+        const dailyTotals: Record<string, number> = {};
+
+        weekDays.forEach((day) => {
+          dailyTotals[format(day, "EEE")] = 0;
+        });
+
+        snapshot.docs.forEach((doc) => {
+          const exp = doc.data() as Expense;
+
+          let dateValue: Date | null = null;
+          if (exp.date instanceof Timestamp) {
+            dateValue = exp.date.toDate();
+          } else if (
+            typeof exp.date === "string" ||
+            typeof exp.date === "number"
+          ) {
+            dateValue = new Date(exp.date);
+          }
+
+          if (!dateValue) return;
+
+          // Only consider this week's expenses
+          weekDays.forEach((day) => {
+            if (isSameDay(day, dateValue!)) {
+              const dayName = format(day, "EEE");
+              dailyTotals[dayName] += exp.amount || 0;
+            }
+          });
+        });
+
+        const chartData = weekDays.map((day) => ({
+          name: format(day, "EEE"),
+          amount: dailyTotals[format(day, "EEE")] || 0,
+        }));
+
+        setData(chartData);
+      }
+    );
+
+    return () => unsub();
+  }, [userId]);
 
   return (
     <Card className="relative overflow-hidden border border-blue-100 dark:border-slate-800 bg-gradient-to-br from-blue-50 via-white to-blue-100/30 dark:from-[#0B1120] dark:via-[#0F172A] dark:to-[#1E293B] shadow-md hover:shadow-lg transition-all duration-300">
@@ -50,7 +112,10 @@ const ExpenseChart = () => {
               dataKey="name"
               tick={{
                 fontSize: 12,
-                fill: "hsl(var(--muted-foreground))",
+                fill:
+                  theme === "dark"
+                    ? "white"
+                    : "hsl(var(--muted-foreground))",
               }}
               axisLine={false}
               tickLine={false}
@@ -58,10 +123,11 @@ const ExpenseChart = () => {
             <YAxis
               tick={{
                 fontSize: 12,
-                fill: "hsl(var(--muted-foreground))",
+                fill: "var(--y-axis-color)",
               }}
               axisLine={false}
               tickLine={false}
+              className="dark:text-white"
             />
             <Tooltip
               contentStyle={{

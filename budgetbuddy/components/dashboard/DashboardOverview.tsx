@@ -1,44 +1,51 @@
 import {
   CreditCard,
   DollarSign,
+  RefreshCcw,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import ExpenseChart from "./ExpenseChart";
 import CategoryBreakdown from "./CategoryBreakdown";
+import { useUser } from "@clerk/nextjs";
+import { useTotalExpenses } from "@/hooks/useTotalExpenses";
+import { useMonthlyExpenses } from "@/hooks/useMonthlyExpenses";
+import { useAverageDaily } from "@/hooks/useAverageDaily";
+import { useBudgetLeft } from "@/hooks/useBudgetLeft";
+import { useAISuggestions } from "@/hooks/useAISuggestions";
+import { useCategoryExpenses } from "@/hooks/useCategoryExpenses";
+import { Button } from "../ui/button";
 
 const DashboardOverview = () => {
-  // Mock data - will be replaced with real data from Lovable Cloud
+  const { user } = useUser();
+  const userId = user?.id || "";
+  const { categories, loading: categoryLoading } =
+    useCategoryExpenses(userId);
+
+  const total = useTotalExpenses(userId);
+  const monthly = useMonthlyExpenses(userId);
+  const average = useAverageDaily(userId);
+  const budgetLeft = useBudgetLeft(userId);
+
+  const statsData = {
+    total: total.value,
+    monthly: monthly.value,
+    average: average.value,
+    budgetLeft: budgetLeft.value,
+    categories: categories, // ✅ from Firebase
+  };
+
+  const { suggestions, loading ,refetchSuggestions } = useAISuggestions(
+    userId,
+    statsData
+  );
+
   const stats = [
-    {
-      title: "Total Expenses",
-      value: "$1,234.56",
-      change: "+12.5%",
-      trend: "up",
-      icon: DollarSign,
-    },
-    {
-      title: "This Month",
-      value: "$456.78",
-      change: "-8.3%",
-      trend: "down",
-      icon: CreditCard,
-    },
-    {
-      title: "Average Daily",
-      value: "$41.23",
-      change: "+5.2%",
-      trend: "up",
-      icon: TrendingUp,
-    },
-    {
-      title: "Budget Left",
-      value: "$543.22",
-      change: "45%",
-      trend: "down",
-      icon: TrendingDown,
-    },
+    { title: "Total Expenses", data: total, icon: DollarSign },
+    { title: "This Month", data: monthly, icon: CreditCard },
+    { title: "Average Daily", data: average, icon: TrendingUp },
+    { title: "Budget Left", data: budgetLeft, icon: TrendingDown },
   ];
 
   return (
@@ -53,7 +60,6 @@ const DashboardOverview = () => {
           >
             {/* Soft gradient glow effect */}
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-primary transition-colors duration-300">
                 {stat.title}
@@ -65,23 +71,19 @@ const DashboardOverview = () => {
 
             <CardContent>
               <div className="text-3xl font-heading font-bold text-foreground group-hover:text-primary transition-colors duration-300">
-                {stat.value}
+                ₦{stat.data.value.toFixed(2)}
               </div>
               <p
-                className={`text-xs mt-1 font-medium flex items-center gap-1 transition-colors duration-300 ${
-                  stat.trend === "up"
+                className={`text-xs mt-1 font-medium flex items-center gap-1 ${
+                  stat.data.trend === "up"
                     ? "text-green-600 dark:text-green-400"
-                    : "text-red-600 dark:text-red-400"
+                    : stat.data.trend === "down"
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-muted-foreground"
                 }`}
               >
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${
-                    stat.trend === "up"
-                      ? "bg-green-500"
-                      : "bg-red-500"
-                  }`}
-                ></span>
-                {stat.change} from last month
+                {stat.data.change > 0 && "+"}
+                {stat.data.change.toFixed(1)}% from last month
               </p>
             </CardContent>
           </Card>
@@ -90,12 +92,12 @@ const DashboardOverview = () => {
 
       {/* Charts Section */}
       <div className="grid gap-6 md:grid-cols-2">
-        <ExpenseChart />
-        <CategoryBreakdown />
+        <ExpenseChart userId={userId} />
+        <CategoryBreakdown userId={userId} />
       </div>
 
       {/* Suggestions Card */}
-      <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
+      {/* <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
         <CardHeader>
           <CardTitle className="font-heading">
             💡 Smart Suggestions
@@ -126,6 +128,60 @@ const DashboardOverview = () => {
               </p>
             </div>
           </div>
+        </CardContent>
+      </Card>  */}
+
+      <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-heading flex items-center gap-2">
+            💡 Smart Suggestions
+          </CardTitle>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetchSuggestions()} // 👈 new trigger
+            disabled={loading || categoryLoading}
+            className="flex items-center gap-1 text-sm bg-gradient-to-br from-blue-500 to-teal-300"
+          >
+            {loading ? (
+              <>
+                <RefreshCcw className="h-4 w-4 animate-spin" />
+                <span>Regenerating...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCcw className="h-4 w-4" />
+                <span>Regenerate</span>
+              </>
+            )}
+          </Button>
+        </CardHeader>
+
+        <CardContent className="space-y-3">
+          {loading || categoryLoading ? (
+            <p className="text-muted-foreground text-sm">
+              Analyzing your data...
+            </p>
+          ) : suggestions.length > 0 ? (
+            suggestions.map((s, i) => (
+              <div key={i} className="flex items-start space-x-3">
+                <div className="w-2 h-2 bg-primary rounded-full mt-2" />
+                <div>
+                  <p className="font-medium text-foreground">
+                    {s.title}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {s.message}
+                  </p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No new suggestions yet. Spend wisely! 💸
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>
