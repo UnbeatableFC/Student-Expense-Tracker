@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^6.33.4",
+    "@google/genai": "^1.25.0",
+    "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -45,6 +47,7 @@
     "firebase": "^12.4.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.545.0",
+    "motion": "^12.23.24",
     "next": "15.5.5",
     "next-themes": "^0.4.6",
     "react": "19.1.0",
